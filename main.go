@@ -9,7 +9,6 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -141,28 +140,32 @@ func main() {
 	output.Disable()
 	output.TextStyle = fyne.TextStyle{Monospace: true}
 
-	// Process button
+	// Full-width process button with padding
 	processButton := widget.NewButtonWithIcon("Process Order", theme.ConfirmIcon(), func() {
 		output.SetText(processPanelList(input.Text))
 	})
-
-	// Fix height proportions (just under half each)
-	input.SetMinRowsVisible(10)  // Input ~45% of window
-	output.SetMinRowsVisible(10) // Output ~45% of window
-
-	content := container.NewVBox(
-		widget.NewLabelWithStyle("Enter Panel List:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		container.NewMax(input),
-		layout.NewSpacer(),
+	processButton.Importance = widget.HighImportance
+	buttonArea := container.NewVBox(
+		widget.NewLabel(""), // small spacer
 		processButton,
-		layout.NewSpacer(),
-		widget.NewLabelWithStyle("Results:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		container.NewMax(output),
 	)
 
-	padded := container.NewPadded(content)
+	// Split view for proportional height
+	topArea := container.NewVBox(
+		widget.NewLabelWithStyle("Enter Panel List:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		input,
+	)
+	bottomArea := container.NewVBox(
+		widget.NewLabelWithStyle("Results:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		output,
+	)
+	split := container.NewVSplit(topArea, bottomArea)
+	split.SetOffset(0.45) // ~45% top, 55% bottom
 
-	myWindow.SetContent(padded)
-	myWindow.Resize(fyne.NewSize(600, 600))
+	// Final layout with padded main content
+	mainContent := container.NewBorder(nil, buttonArea, nil, nil, split)
+
+	myWindow.SetContent(container.NewPadded(mainContent))
+	myWindow.Resize(fyne.NewSize(750, 600))
 	myWindow.ShowAndRun()
 }
