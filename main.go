@@ -110,15 +110,13 @@ func processPanelList(inputText string) *widget.RichText {
 		return panels[i].LengthInInches > panels[j].LengthInInches
 	})
 
-	// Build rich text content
 	segments := []widget.RichTextSegment{
-		&widget.TextSegment{Text: "🧾 Sorted Panel List (Longest to Shortest):\n", Style: widget.RichTextStyle{TextStyle: fyne.TextStyle{Bold: true}}},
+		&widget.TextSegment{Text: "🧾 Sorted Panel List (Longest to Shortest):\n\n", Style: widget.RichTextStyle{TextStyle: fyne.TextStyle{Bold: true}}},
 	}
 
 	totalInches := 0
 	for _, panel := range panels {
-		lengthStr := formatInchesToFeetAndInches(panel.LengthInInches)
-		line := fmt.Sprintf("%d @ %s\n", panel.Quantity, lengthStr)
+		line := fmt.Sprintf("%d @ %s\n", panel.Quantity, formatInchesToFeetAndInches(panel.LengthInInches))
 		segments = append(segments, &widget.TextSegment{
 			Text:  line,
 			Style: widget.RichTextStyle{TextStyle: fyne.TextStyle{Monospace: true}},
@@ -147,17 +145,35 @@ func main() {
 	input.SetPlaceHolder("Example:\n5 @ 12'6\"\n2 @ 150\"\n3 @ 10'\n")
 	input.TextStyle = fyne.TextStyle{Monospace: true}
 
-	// Output area (RichText, read-only)
+	// Output area
 	output := widget.NewRichTextWithText("Results will appear here...")
 	output.Wrapping = fyne.TextWrapWord
 	output.Scroll = container.ScrollVerticalOnly
 
-	// Process button
+	// Process Order button
 	processButton := widget.NewButtonWithIcon("Process Order", theme.ConfirmIcon(), func() {
 		output.Segments = processPanelList(input.Text).Segments
 		output.Refresh()
 	})
 	processButton.Importance = widget.HighImportance
+
+	// Copy to Clipboard button (only panel lines)
+	copyButton := widget.NewButtonWithIcon("Copy to Clipboard", theme.ContentCopyIcon(), func() {
+		var builder strings.Builder
+		for i, seg := range output.Segments {
+			if t, ok := seg.(*widget.TextSegment); ok {
+				// Skip the first (header) and last (total) segments
+				if i == 0 || i == len(output.Segments)-1 {
+					continue
+				}
+				builder.WriteString(t.Text)
+			}
+		}
+		myWindow.Clipboard().SetContent(builder.String())
+	})
+
+	// Buttons side by side
+	buttonRow := container.NewHBox(processButton, copyButton)
 
 	// Top area (input)
 	topArea := container.NewBorder(
@@ -173,11 +189,10 @@ func main() {
 
 	// Split for resizable top/bottom
 	split := container.NewVSplit(topArea, bottomArea)
-	split.SetOffset(0.45) // ~45% input, 55% output
-	split.Offset = 0.45
+	split.SetOffset(0.45) // 45% input, 55% output
 
-	// Border with button in the middle
-	content := container.NewBorder(nil, processButton, nil, nil, split)
+	// Content with buttons
+	content := container.NewBorder(nil, buttonRow, nil, nil, split)
 
 	myWindow.SetContent(container.NewPadded(content))
 	myWindow.Resize(fyne.NewSize(800, 600))
