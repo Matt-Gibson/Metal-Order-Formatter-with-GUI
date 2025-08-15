@@ -66,7 +66,7 @@ func parseLengthInput(input string) (int, error) {
 	return feet*12 + inches, nil
 }
 
-func processPanelList(inputText string) string {
+func processPanelList(inputText string) *widget.RichText {
 	lines := strings.Split(inputText, "\n")
 	panelMap := make(map[int]int)
 
@@ -78,7 +78,7 @@ func processPanelList(inputText string) string {
 
 		parts := strings.Split(line, "@")
 		if len(parts) != 2 {
-			return fmt.Sprintf("⚠️ Invalid format in line: %s\nUse: quantity @ length", line)
+			return widget.NewRichTextWithText(fmt.Sprintf("⚠️ Invalid format in line: %s\nUse: quantity @ length", line))
 		}
 
 		quantityStr := strings.TrimSpace(parts[0])
@@ -86,19 +86,19 @@ func processPanelList(inputText string) string {
 
 		quantity, err := strconv.Atoi(quantityStr)
 		if err != nil || quantity <= 0 {
-			return fmt.Sprintf("⚠️ Invalid quantity '%s'", quantityStr)
+			return widget.NewRichTextWithText(fmt.Sprintf("⚠️ Invalid quantity '%s'", quantityStr))
 		}
 
 		lengthInInches, err := parseLengthInput(lengthStr)
 		if err != nil {
-			return fmt.Sprintf("⚠️ Invalid length '%s': %v", lengthStr, err)
+			return widget.NewRichTextWithText(fmt.Sprintf("⚠️ Invalid length '%s': %v", lengthStr, err))
 		}
 
 		panelMap[lengthInInches] += quantity
 	}
 
 	if len(panelMap) == 0 {
-		return "No valid panels entered."
+		return widget.NewRichTextWithText("No valid panels entered.")
 	}
 
 	var panels []Panel
@@ -110,19 +110,32 @@ func processPanelList(inputText string) string {
 		return panels[i].LengthInInches > panels[j].LengthInInches
 	})
 
-	result := "🧾 Sorted Panel List (Longest to Shortest):\n"
+	// Build rich text content
+	segments := []widget.RichTextSegment{
+		&widget.TextSegment{Text: "🧾 Sorted Panel List (Longest to Shortest):\n", Style: widget.RichTextStyle{TextStyle: fyne.TextStyle{Bold: true}}},
+	}
+
 	totalInches := 0
 	for _, panel := range panels {
 		lengthStr := formatInchesToFeetAndInches(panel.LengthInInches)
-		result += fmt.Sprintf("%d @ %s\n", panel.Quantity, lengthStr)
+		line := fmt.Sprintf("%d @ %s\n", panel.Quantity, lengthStr)
+		segments = append(segments, &widget.TextSegment{
+			Text:  line,
+			Style: widget.RichTextStyle{TextStyle: fyne.TextStyle{Monospace: true}},
+		})
 		totalInches += panel.LengthInInches * panel.Quantity
 	}
 
 	totalFeet := totalInches / 12
 	remainderInches := totalInches % 12
-	result += fmt.Sprintf("\n📐 Total Order Length: %d' %d\" (%d inches)\n", totalFeet, remainderInches, totalInches)
+	totalLine := fmt.Sprintf("\n📐 Total Order Length: %d' %d\" (%d inches)", totalFeet, remainderInches, totalInches)
 
-	return result
+	segments = append(segments, &widget.TextSegment{
+		Text:  totalLine,
+		Style: widget.RichTextStyle{TextStyle: fyne.TextStyle{Bold: true, Italic: true}},
+	})
+
+	return widget.NewRichText(segments...)
 }
 
 func main() {
@@ -134,38 +147,39 @@ func main() {
 	input.SetPlaceHolder("Example:\n5 @ 12'6\"\n2 @ 150\"\n3 @ 10'\n")
 	input.TextStyle = fyne.TextStyle{Monospace: true}
 
-	// Output area
-	output := widget.NewMultiLineEntry()
-	output.SetPlaceHolder("Results will appear here...")
-	output.Disable()
-	output.TextStyle = fyne.TextStyle{Monospace: true}
+	// Output area (RichText, read-only)
+	output := widget.NewRichTextWithText("Results will appear here...")
+	output.Wrapping = fyne.TextWrapWord
+	output.Scroll = container.ScrollVerticalOnly
 
-	// Full-width process button with padding
+	// Process button
 	processButton := widget.NewButtonWithIcon("Process Order", theme.ConfirmIcon(), func() {
-		output.SetText(processPanelList(input.Text))
+		output.Segments = processPanelList(input.Text).Segments
+		output.Refresh()
 	})
 	processButton.Importance = widget.HighImportance
-	buttonArea := container.NewVBox(
-		widget.NewLabel(""), // small spacer
-		processButton,
-	)
 
-	// Split view for proportional height
-	topArea := container.NewVBox(
+	// Top area (input)
+	topArea := container.NewBorder(
 		widget.NewLabelWithStyle("Enter Panel List:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		input,
+		nil, nil, nil, input,
 	)
-	bottomArea := container.NewVBox(
+
+	// Bottom area (output)
+	bottomArea := container.NewBorder(
 		widget.NewLabelWithStyle("Results:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		output,
+		nil, nil, nil, output,
 	)
+
+	// Split for resizable top/bottom
 	split := container.NewVSplit(topArea, bottomArea)
-	split.SetOffset(0.45) // ~45% top, 55% bottom
+	split.SetOffset(0.45) // ~45% input, 55% output
+	split.Offset = 0.45
 
-	// Final layout with padded main content
-	mainContent := container.NewBorder(nil, buttonArea, nil, nil, split)
+	// Border with button in the middle
+	content := container.NewBorder(nil, processButton, nil, nil, split)
 
-	myWindow.SetContent(container.NewPadded(mainContent))
-	myWindow.Resize(fyne.NewSize(750, 600))
+	myWindow.SetContent(container.NewPadded(content))
+	myWindow.Resize(fyne.NewSize(800, 600))
 	myWindow.ShowAndRun()
 }
