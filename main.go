@@ -157,7 +157,7 @@ func main() {
 	})
 	processButton.Importance = widget.HighImportance
 
-	// Copy to Clipboard button (only panel lines)
+	// Copy to Clipboard button (QuickBooks fix: use \r\n line endings)
 	copyButton := widget.NewButtonWithIcon("Copy to Clipboard", theme.ContentCopyIcon(), func() {
 		var builder strings.Builder
 		for i, seg := range output.Segments {
@@ -166,7 +166,8 @@ func main() {
 				if i == 0 || i == len(output.Segments)-1 {
 					continue
 				}
-				builder.WriteString(t.Text)
+				// Use Windows-style line breaks for QuickBooks
+				builder.WriteString(strings.ReplaceAll(t.Text, "\n", "\r\n"))
 			}
 		}
 		myWindow.Clipboard().SetContent(builder.String())
